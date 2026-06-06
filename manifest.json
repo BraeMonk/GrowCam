@@ -2,7 +2,7 @@
   "name": "GrowCam",
   "short_name": "GrowCam",
   "description": "Grow room P2P camera monitor",
-  "start_url": "./growcam.html",
+  "start_url": "./index.html",
   "display": "fullscreen",
   "orientation": "any",
   "background_color": "#070c07",
