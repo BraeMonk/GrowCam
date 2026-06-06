@@ -1,5 +1,5 @@
 // GrowCam Service Worker
-const CACHE = 'growcam-v1';
+const CACHE = 'growcam-v2';
 const ASSETS = [
   './growcam.html',
   './manifest.json'
