@@ -275,7 +275,7 @@ function setViewStatus(txt,dot){document.getElementById('view-status').textConte
 // ── Clock ────────────────────────────────────────────────────────────
 function tick(){
   const n=new Date();
-  const t=n.toLocaleTimeString('en-CA',{hour12:false});
+  const t=n.toLocaleTimeString('en-CA',{hour12:true});
   const d=n.toLocaleDateString('en-CA');
   ['cam-time','view-time'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=t});
   ['cam-date','view-date'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=d});
@@ -343,7 +343,19 @@ async function go(){
 
 // ── Camera peer ──────────────────────────────────────────────────────
 function startCameraPeer(){
-  peer=new Peer('growcam-'+roomCode);
+  peer = new Peer('growcam-' + roomCode, {
+    config: {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        {
+          urls: 'turn:openrelay.metered.ca:80',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        }
+      ]
+    }
+  });
+
   peer.on('open',()=>{setCamStatus('WAITING FOR VIEWER','amber');toast('Ready — share code: '+roomCode,5000)});
   peer.on('call',incoming=>{
     // Close any previous call cleanly
@@ -370,7 +382,18 @@ function startCameraPeer(){
 
 // ── Viewer peer ──────────────────────────────────────────────────────
 function startViewerPeer(){
-  peer=new Peer();
+  peer = new Peer('', {
+    config: {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        {
+          urls: 'turn:openrelay.metered.ca:80',
+          username: 'openrelayproject',
+          credential: 'openrelayproject'
+        }
+      ]
+    }
+  });
   peer.on('open',()=>callCamera());
   peer.on('error',err=>{
     setViewStatus('ERROR','red');
