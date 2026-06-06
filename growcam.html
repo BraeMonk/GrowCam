@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GrowCam">
+<meta name="theme-color" content="#0a0f0a">
+<title>GrowCam</title>
+<link rel="manifest" href="manifest.json">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Saira+Condensed:wght@300;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+<style>
+:root {
+  --bg:        #070c07;
+  --bg2:       #0d140d;
+  --bg3:       #131e13;
+  --panel:     #091209;
+  --border:    #1a2e1a;
+  --green:     #3dff6e;
+  --green-dim: #1d7a38;
+  --green-low: #0b3318;
+  --amber:     #f5a623;
+  --red:       #ff4455;
+  --text:      #c0dcc0;
+  --text-dim:  #4d6e4d;
+  --mono:      'Share Tech Mono', monospace;
+  --sans:      'Saira Condensed', sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--text);font-family:var(--mono);overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none;touch-action:manipulation}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .25s,transform .25s}
+.screen.hidden{opacity:0;pointer-events:none;transform:scale(.97)}
+
+/* ── SETUP ─────────────────────────────────────────── */
+#setup{padding:max(env(safe-area-inset-top),24px) 24px max(env(safe-area-inset-bottom),24px);gap:16px;background:radial-gradient(ellipse 60% 40% at 50% 0%,rgba(57,255,110,.04) 0%,transparent 70%),var(--bg)}
+.logo-wrap{display:flex;flex-direction:column;align-items:center;margin-bottom:8px}
+.logo-svg{width:64px;height:64px;margin-bottom:10px}
+.logo-title{font-family:var(--sans);font-weight:700;font-size:34px;letter-spacing:8px;color:var(--green);text-transform:uppercase}
+.logo-sub{font-size:9px;color:var(--text-dim);letter-spacing:3px;margin-top:3px}
+.room-block{width:100%;max-width:340px;background:var(--panel);border:1px solid var(--border);border-radius:3px;padding:18px}
+.room-label{font-size:9px;color:var(--text-dim);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:10px}
+.room-code-display{font-size:32px;letter-spacing:8px;color:var(--green);text-align:center;padding:10px 0;cursor:pointer;transition:opacity .15s}
+.room-code-display:active{opacity:.6}
+.copy-hint{font-size:9px;color:var(--text-dim);text-align:center;margin-top:6px;letter-spacing:1px}
+.room-input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:2px;color:var(--green);font-family:var(--mono);font-size:22px;letter-spacing:6px;text-align:center;text-transform:uppercase;padding:12px;outline:none;transition:border-color .2s}
+.room-input:focus{border-color:var(--green-dim)}
+.room-input::placeholder{color:var(--text-dim);font-size:14px;letter-spacing:2px}
+.mode-row{display:flex;gap:10px;width:100%;max-width:340px}
+.mode-btn{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:3px;color:var(--text-dim);font-family:var(--sans);font-weight:600;font-size:14px;letter-spacing:2px;text-transform:uppercase;padding:16px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:7px;transition:all .15s}
+.mode-btn .icon{font-size:20px}
+.mode-btn:active{transform:scale(.96)}
+.mode-btn.selected{border-color:var(--green);color:var(--green);background:var(--green-low);box-shadow:0 0 18px rgba(61,255,110,.07)}
+.action-btn{width:100%;max-width:340px;background:var(--green-low);border:1px solid var(--green-dim);border-radius:3px;color:var(--green);font-family:var(--sans);font-weight:700;font-size:15px;letter-spacing:4px;text-transform:uppercase;padding:17px;cursor:pointer;transition:all .15s}
+.action-btn:active{background:var(--green);color:var(--bg);transform:scale(.98)}
+.action-btn:disabled{opacity:.25;pointer-events:none}
+
+/* ── CAMERA / VIEWER SCREENS ────────────────────────── */
+#camera-screen,#viewer-screen{background:#000}
+#local-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+#remote-video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;transform-origin:center center;transition:transform .15s ease}
+.scanlines{position:absolute;inset:0;pointer-events:none;z-index:1;background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.06) 3px,rgba(0,0,0,.06) 6px)}
+.hud-top{position:absolute;top:0;left:0;right:0;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:max(env(safe-area-inset-top),10px) 14px 14px;background:linear-gradient(to bottom,rgba(0,0,0,.75) 0%,transparent 100%);pointer-events:none}
+.hud-bottom{position:absolute;bottom:0;left:0;right:0;z-index:10;display:flex;align-items:flex-end;justify-content:space-between;padding:14px 14px max(env(safe-area-inset-bottom),10px);background:linear-gradient(to top,rgba(0,0,0,.75) 0%,transparent 100%)}
+.status-pill{display:flex;align-items:center;gap:7px;background:rgba(0,0,0,.55);border:1px solid rgba(61,255,110,.18);border-radius:20px;padding:5px 12px;font-size:9px;letter-spacing:1.8px;color:var(--green);pointer-events:none}
+.status-pill.warn{color:var(--amber);border-color:rgba(245,166,35,.25)}
+.status-pill.err{color:var(--red);border-color:rgba(255,68,85,.25)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--text-dim);transition:background .3s,box-shadow .3s;flex-shrink:0}
+.dot.green{background:var(--green);box-shadow:0 0 7px var(--green)}
+.dot.amber{background:var(--amber)}
+.dot.red{background:var(--red)}
+.hud-clock{display:flex;flex-direction:column;align-items:flex-end;gap:2px;pointer-events:none}
+.hud-time{font-size:12px;color:var(--green)}
+.hud-date{font-size:9px;color:var(--text-dim);letter-spacing:1px}
+.corners{position:absolute;inset:0;pointer-events:none;z-index:2}
+.c{position:absolute;width:18px;height:18px}
+.c.tl{top:52px;left:8px;border-top:1px solid var(--green-dim);border-left:1px solid var(--green-dim)}
+.c.tr{top:52px;right:8px;border-top:1px solid var(--green-dim);border-right:1px solid var(--green-dim)}
+.c.bl{bottom:58px;left:8px;border-bottom:1px solid var(--green-dim);border-left:1px solid var(--green-dim)}
+.c.br{bottom:58px;right:8px;border-bottom:1px solid var(--green-dim);border-right:1px solid var(--green-dim)}
+.icon-btn{width:42px;height:42px;border-radius:50%;background:rgba(0,0,0,.6);border:1px solid rgba(61,255,110,.18);display:flex;align-items:center;justify-content:center;font-size:17px;cursor:pointer;transition:all .15s;color:var(--text);flex-shrink:0}
+.icon-btn:active{transform:scale(.90);background:rgba(61,255,110,.15)}
+.icon-btn.lit{border-color:var(--amber);color:var(--amber);background:rgba(245,166,35,.12)}
+.ctrl-row{display:flex;gap:10px;align-items:center}
+.back-btn{background:rgba(0,0,0,.55);border:1px solid rgba(61,255,110,.15);border-radius:2px;color:var(--text-dim);font-family:var(--mono);font-size:9px;letter-spacing:2px;padding:6px 11px;cursor:pointer;flex-shrink:0}
+.back-btn:active{color:var(--green)}
+.no-feed{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--text-dim);pointer-events:none}
+.no-feed-icon{font-size:38px;opacity:.25}
+.no-feed-msg{font-size:10px;letter-spacing:2px}
+.no-feed-retry{font-size:9px;color:var(--amber);letter-spacing:1.5px;margin-top:4px}
+.room-badge{position:absolute;bottom:62px;left:50%;transform:translateX(-50%);z-index:10;display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.7);border:1px solid rgba(61,255,110,.2);border-radius:20px;padding:6px 14px;font-size:14px;letter-spacing:4px;color:var(--green);cursor:pointer}
+.room-badge-label{font-size:8px;color:var(--text-dim);letter-spacing:2px}
+
+/* ── ZOOM SLIDER (viewer) ───────────────────────────── */
+.zoom-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:auto}
+.zoom-label{font-size:8px;color:var(--text-dim);letter-spacing:1.5px}
+input[type=range].zoom-slider{
+  -webkit-appearance:none;appearance:none;
+  width:80px;height:3px;
+  background:rgba(61,255,110,.2);border-radius:2px;outline:none;cursor:pointer;
+}
+input[type=range].zoom-slider::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:14px;height:14px;border-radius:50%;
+  background:var(--green);box-shadow:0 0 6px var(--green);cursor:pointer;
+}
+input[type=range].zoom-slider::-moz-range-thumb{
+  width:14px;height:14px;border-radius:50%;border:none;
+  background:var(--green);box-shadow:0 0 6px var(--green);cursor:pointer;
+}
+.zoom-val{font-size:9px;color:var(--green);letter-spacing:1px;min-width:32px;text-align:center}
+
+/* ── RECORDING INDICATOR ────────────────────────────── */
+.rec-badge{display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.6);border:1px solid rgba(255,68,85,.35);border-radius:20px;padding:4px 10px;font-size:9px;letter-spacing:1.5px;color:var(--red);pointer-events:none}
+.rec-dot{width:7px;height:7px;border-radius:50%;background:var(--red);animation:blink 1s step-start infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
+
+/* ── TOAST ──────────────────────────────────────────── */
+#toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--bg3);border:1px solid var(--border);border-radius:2px;padding:9px 16px;font-size:10px;letter-spacing:1px;color:var(--text);z-index:999;white-space:nowrap;transition:opacity .3s}
+#toast.hidden{opacity:0;pointer-events:none}
+
+/* ── REC BUTTON state ───────────────────────────────── */
+.icon-btn.recording{border-color:var(--red);color:var(--red);background:rgba(255,68,85,.12);animation:pulse-border 1.2s ease-in-out infinite}
+@keyframes pulse-border{0%,100%{box-shadow:0 0 0 0 rgba(255,68,85,.4)}50%{box-shadow:0 0 0 5px rgba(255,68,85,0)}}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════ SETUP ══════════════════════════════ -->
+<div class="screen" id="setup">
+  <div class="logo-wrap">
+    <svg class="logo-svg" viewBox="0 0 64 64" fill="none">
+      <path d="M32 6 C18 18 12 38 32 54 C52 38 46 18 32 6Z" stroke="#3dff6e" stroke-width="1.2" fill="none" opacity="0.55"/>
+      <line x1="32" y1="8" x2="32" y2="52" stroke="#3dff6e" stroke-width="0.8" opacity="0.35"/>
+      <line x1="32" y1="26" x2="18" y2="34" stroke="#3dff6e" stroke-width="0.7" opacity="0.28"/>
+      <line x1="32" y1="26" x2="46" y2="34" stroke="#3dff6e" stroke-width="0.7" opacity="0.28"/>
+      <circle cx="32" cy="30" r="10" stroke="#3dff6e" stroke-width="1.4" opacity="0.9"/>
+      <circle cx="32" cy="30" r="5" fill="#3dff6e" opacity="0.15"/>
+      <circle cx="32" cy="30" r="2" fill="#3dff6e" opacity="0.85"/>
+      <circle cx="35" cy="27" r="1.2" fill="white" opacity="0.35"/>
+    </svg>
+    <div class="logo-title">GrowCam</div>
+    <div class="logo-sub">GROW ROOM MONITOR · P2P</div>
+  </div>
+
+  <div class="room-block" id="code-block" style="display:none">
+    <div class="room-label">Your Room Code — share with viewer</div>
+    <div class="room-code-display" id="room-code-display" onclick="copyCode()">----</div>
+    <div class="copy-hint">TAP TO COPY</div>
+  </div>
+
+  <div class="room-block" id="join-block" style="display:none">
+    <div class="room-label">Enter Room Code</div>
+    <input class="room-input" id="room-input" type="text" maxlength="4"
+      placeholder="XXXX" autocomplete="off" autocorrect="off"
+      autocapitalize="characters" spellcheck="false">
+  </div>
+
+  <div class="mode-row">
+    <button class="mode-btn" id="btn-camera" onclick="selectMode('camera')">
+      <span class="icon">📷</span>CAMERA
+    </button>
+    <button class="mode-btn" id="btn-viewer" onclick="selectMode('viewer')">
+      <span class="icon">📺</span>VIEWER
+    </button>
+  </div>
+
+  <button class="action-btn" id="go-btn" onclick="go()" disabled>GO</button>
+</div>
+
+<!-- ══════════════════════════ CAMERA SCREEN ══════════════════════════ -->
+<div class="screen hidden" id="camera-screen">
+  <video id="local-video" autoplay muted playsinline></video>
+  <div class="scanlines"></div>
+  <div class="corners">
+    <div class="c tl"></div><div class="c tr"></div>
+    <div class="c bl"></div><div class="c br"></div>
+  </div>
+  <div class="hud-top">
+    <div class="status-pill" id="cam-pill">
+      <div class="dot" id="cam-dot"></div>
+      <span id="cam-status">STARTING</span>
+    </div>
+    <div class="hud-clock">
+      <div class="hud-time" id="cam-time"></div>
+      <div class="hud-date" id="cam-date"></div>
+    </div>
+  </div>
+  <div class="room-badge" onclick="copyCode()">
+    <div>
+      <div class="room-badge-label">ROOM</div>
+      <div id="badge-code">----</div>
+    </div>
+    <div style="font-size:11px;color:var(--text-dim)">⎘</div>
+  </div>
+  <div class="hud-bottom">
+    <button class="back-btn" onclick="goBack()">← BACK</button>
+    <div class="ctrl-row">
+      <div class="icon-btn" id="torch-btn"  onclick="toggleTorch()">🔦</div>
+      <div class="icon-btn" id="flip-btn"   onclick="flipCamera()">🔄</div>
+      <div class="icon-btn" id="mic-btn"    onclick="toggleMic()">🎙️</div>
+      <div class="icon-btn" id="cam-snap-btn" onclick="cameraSnapshot()" title="Snapshot">📸</div>
+      <div class="icon-btn" id="cam-rec-btn"  onclick="toggleCamRecording()" title="Record">⏺</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ VIEWER SCREEN ══════════════════════════ -->
+<div class="screen hidden" id="viewer-screen">
+  <video id="remote-video" autoplay playsinline></video>
+  <div class="scanlines"></div>
+  <div class="corners">
+    <div class="c tl"></div><div class="c tr"></div>
+    <div class="c bl"></div><div class="c br"></div>
+  </div>
+  <div class="no-feed" id="no-feed">
+    <div class="no-feed-icon">🌿</div>
+    <div class="no-feed-msg">AWAITING CAMERA FEED</div>
+    <div class="no-feed-retry" id="retry-msg"></div>
+  </div>
+  <div class="hud-top">
+    <div class="status-pill" id="view-pill">
+      <div class="dot" id="view-dot"></div>
+      <span id="view-status">CONNECTING</span>
+    </div>
+    <div id="rec-badge" class="rec-badge" style="display:none">
+      <div class="rec-dot"></div>REC
+    </div>
+    <div class="hud-clock">
+      <div class="hud-time" id="view-time"></div>
+      <div class="hud-date" id="view-date"></div>
+    </div>
+  </div>
+  <div class="hud-bottom">
+    <button class="back-btn" onclick="goBack()">← BACK</button>
+    <div class="zoom-wrap">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="zoom-label">ZOOM</span>
+        <span class="zoom-val" id="zoom-val">1.0×</span>
+      </div>
+      <input type="range" class="zoom-slider" id="zoom-slider" min="1" max="4" step="0.1" value="1" oninput="onZoom(this.value)">
+    </div>
+    <div class="ctrl-row">
+      <div class="icon-btn" id="fs-btn"       onclick="toggleFullscreen()">⛶</div>
+      <div class="icon-btn" id="vol-btn"       onclick="toggleMute()">🔊</div>
+      <div class="icon-btn" id="snap-btn"      onclick="takeSnapshot()">📸</div>
+      <div class="icon-btn" id="view-rec-btn"  onclick="toggleViewRecording()">⏺</div>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────
+let mode=null, peer=null, call=null, localStream=null;
+let facingMode='environment', torchOn=false, micMuted=false, viewMuted=false, roomCode='';
+let retryTimer=null, retryCountdown=0, retryCountdownTimer=null;
+
+// Recording state
+let camRecorder=null, camChunks=[], camRecording=false;
+let viewRecorder=null, viewChunks=[], viewRecording=false;
+
+// ── Helpers ──────────────────────────────────────────────────────────
+function rnd4(){const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return Array.from({length:4},()=>c[Math.floor(Math.random()*c.length)]).join('')}
+function show(id){document.getElementById(id).classList.remove('hidden')}
+function hide(id){document.getElementById(id).classList.add('hidden')}
+let _tid;
+function toast(msg,dur=3000){const t=document.getElementById('toast');t.textContent=msg;t.classList.remove('hidden');clearTimeout(_tid);_tid=setTimeout(()=>t.classList.add('hidden'),dur)}
+function setCamStatus(txt,dot){document.getElementById('cam-status').textContent=txt;document.getElementById('cam-dot').className='dot'+(dot?' '+dot:'')}
+function setViewStatus(txt,dot){document.getElementById('view-status').textContent=txt;document.getElementById('view-dot').className='dot'+(dot?' '+dot:'')}
+
+// ── Clock ────────────────────────────────────────────────────────────
+function tick(){
+  const n=new Date();
+  const t=n.toLocaleTimeString('en-CA',{hour12:false});
+  const d=n.toLocaleDateString('en-CA');
+  ['cam-time','view-time'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=t});
+  ['cam-date','view-date'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=d});
+}
+setInterval(tick,1000);tick();
+
+// ── Wake lock ────────────────────────────────────────────────────────
+async function keepAwake(){if('wakeLock'in navigator){try{await navigator.wakeLock.request('screen')}catch{}}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')keepAwake()});
+keepAwake();
+
+// ── Service worker ───────────────────────────────────────────────────
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+// ── Setup screen logic ───────────────────────────────────────────────
+function selectMode(m){
+  mode=m;
+  document.getElementById('btn-camera').classList.toggle('selected',m==='camera');
+  document.getElementById('btn-viewer').classList.toggle('selected',m==='viewer');
+  if(m==='camera'){
+    document.getElementById('code-block').style.display='block';
+    document.getElementById('join-block').style.display='none';
+    roomCode=rnd4();
+    document.getElementById('room-code-display').textContent=roomCode;
+    document.getElementById('badge-code').textContent=roomCode;
+  } else {
+    document.getElementById('code-block').style.display='none';
+    document.getElementById('join-block').style.display='block';
+  }
+  updateGoBtn();
+}
+
+document.getElementById('room-input').addEventListener('input',e=>{
+  e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  updateGoBtn();
+});
+
+function updateGoBtn(){
+  let ok=false;
+  if(mode==='camera')ok=true;
+  if(mode==='viewer')ok=document.getElementById('room-input').value.length===4;
+  document.getElementById('go-btn').disabled=!ok;
+}
+
+function copyCode(){
+  navigator.clipboard?.writeText(roomCode)
+    .then(()=>toast('Room code copied!'))
+    .catch(()=>toast('Code: '+roomCode));
+}
+
+// ── GO ───────────────────────────────────────────────────────────────
+async function go(){
+  if(mode==='camera'){
+    hide('setup');show('camera-screen');
+    setCamStatus('STARTING CAM','amber');
+    await startCamera();
+    startCameraPeer();
+  } else {
+    roomCode=document.getElementById('room-input').value.trim().toUpperCase();
+    hide('setup');show('viewer-screen');
+    setViewStatus('CONNECTING','amber');
+    startViewerPeer();
+  }
+}
+
+// ── Camera peer ──────────────────────────────────────────────────────
+function startCameraPeer(){
+  peer=new Peer('growcam-'+roomCode);
+  peer.on('open',()=>{setCamStatus('WAITING FOR VIEWER','amber');toast('Ready — share code: '+roomCode,5000)});
+  peer.on('call',incoming=>{
+    // Close any previous call cleanly
+    if(call){call.close();call=null}
+    call=incoming;
+    call.answer(localStream);
+    call.on('close',()=>{setCamStatus('VIEWER LEFT','amber');call=null});
+    call.on('error',()=>setCamStatus('CALL ERROR','red'));
+    setCamStatus('STREAMING','green');
+    toast('Viewer connected');
+  });
+  peer.on('error',err=>{
+    if(err.type==='unavailable-id'){
+      roomCode=rnd4();
+      document.getElementById('room-code-display').textContent=roomCode;
+      document.getElementById('badge-code').textContent=roomCode;
+      peer.destroy();startCameraPeer();
+    } else {
+      setCamStatus('ERROR','red');toast('Peer: '+err.type);
+    }
+  });
+  peer.on('disconnected',()=>{setCamStatus('RECONNECTING','amber');peer.reconnect()});
+}
+
+// ── Viewer peer ──────────────────────────────────────────────────────
+function startViewerPeer(){
+  peer=new Peer();
+  peer.on('open',()=>callCamera());
+  peer.on('error',err=>{
+    setViewStatus('ERROR','red');
+    if(err.type==='peer-unavailable'){
+      toast('Camera not online — retrying...',4000);
+      scheduleRetry(5);
+    } else {
+      toast('Peer: '+err.type);
+    }
+  });
+  peer.on('disconnected',()=>{setViewStatus('RECONNECTING','amber');peer.reconnect()});
+}
+
+function scheduleRetry(secs){
+  clearRetryTimers();
+  retryCountdown=secs;
+  updateRetryMsg();
+  retryCountdownTimer=setInterval(()=>{
+    retryCountdown--;
+    updateRetryMsg();
+    if(retryCountdown<=0){clearRetryTimers();callCamera()}
+  },1000);
+}
+
+function clearRetryTimers(){
+  clearTimeout(retryTimer);clearInterval(retryCountdownTimer);
+  retryTimer=null;retryCountdownTimer=null;retryCountdown=0;
+  document.getElementById('retry-msg').textContent='';
+}
+
+function updateRetryMsg(){
+  const el=document.getElementById('retry-msg');
+  if(retryCountdown>0)el.textContent='RETRYING IN '+retryCountdown+'s';
+  else el.textContent='';
+}
+
+function callCamera(){
+  if(!peer||peer.destroyed)return;
+  clearRetryTimers();
+  setViewStatus('CALLING CAMERA','amber');
+  const silent=createSilentStream();
+  call=peer.call('growcam-'+roomCode,silent);
+  call.on('stream',s=>{
+    document.getElementById('remote-video').srcObject=s;
+    hide('no-feed');
+    setViewStatus('LIVE','green');
+    toast('Stream live');
+  });
+  call.on('close',()=>{
+    setViewStatus('CAMERA OFFLINE','red');
+    show('no-feed');
+    toast('Camera disconnected — retrying...',4000);
+    scheduleRetry(5);
+  });
+  call.on('error',()=>{setViewStatus('ERROR','red');scheduleRetry(8)});
+}
+
+function createSilentStream(){
+  try{
+    const ctx=new AudioContext();
+    const dest=ctx.createMediaStreamDestination();
+    const canvas=document.createElement('canvas');
+    canvas.width=1;canvas.height=1;
+    const vt=canvas.captureStream(1).getVideoTracks()[0];
+    return new MediaStream([dest.stream.getAudioTracks()[0],vt]);
+  }catch{
+    const canvas=document.createElement('canvas');
+    canvas.width=1;canvas.height=1;
+    return canvas.captureStream(1);
+  }
+}
+
+// ── Camera controls ──────────────────────────────────────────────────
+async function startCamera(){
+  try{
+    if(localStream)localStream.getTracks().forEach(t=>t.stop());
+    localStream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode,width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30}},
+      audio:true
+    });
+    document.getElementById('local-video').srcObject=localStream;
+  }catch(e){setCamStatus('CAM ERROR','red');toast('Camera: '+e.message)}
+}
+
+async function flipCamera(){
+  facingMode=facingMode==='environment'?'user':'environment';
+  await startCamera();
+  if(call&&localStream){
+    const senders=call.peerConnection?.getSenders();
+    if(senders)localStream.getTracks().forEach(t=>{
+      const s=senders.find(x=>x.track?.kind===t.kind);
+      if(s)s.replaceTrack(t);
+    });
+  }
+  toast(facingMode==='environment'?'Rear camera':'Front camera');
+}
+
+async function toggleTorch(){
+  if(!localStream)return;
+  const t=localStream.getVideoTracks()[0];
+  if(!t?.getCapabilities?.()?.torch){toast('Torch not supported');return}
+  torchOn=!torchOn;
+  await t.applyConstraints({advanced:[{torch:torchOn}]});
+  document.getElementById('torch-btn').classList.toggle('lit',torchOn);
+  toast(torchOn?'Torch ON':'Torch OFF');
+}
+
+function toggleMic(){
+  if(!localStream)return;
+  micMuted=!micMuted;
+  localStream.getAudioTracks().forEach(t=>t.enabled=!micMuted);
+  document.getElementById('mic-btn').textContent=micMuted?'🔇':'🎙️';
+  document.getElementById('mic-btn').classList.toggle('lit',micMuted);
+  toast(micMuted?'Mic muted':'Mic live');
+}
+
+// ── Camera snapshot ──────────────────────────────────────────────────
+function cameraSnapshot(){
+  const v=document.getElementById('local-video');
+  if(!localStream){toast('No camera');return}
+  const c=document.createElement('canvas');
+  c.width=v.videoWidth||1280;c.height=v.videoHeight||720;
+  c.getContext('2d').drawImage(v,0,0);
+  const a=document.createElement('a');
+  a.download='growcam-cam-'+Date.now()+'.jpg';
+  a.href=c.toDataURL('image/jpeg',.93);a.click();
+  toast('Camera snapshot saved');
+}
+
+// ── Camera recording ─────────────────────────────────────────────────
+function toggleCamRecording(){
+  if(!localStream){toast('No stream');return}
+  if(!camRecording){
+    camChunks=[];
+    const mimeType=getSupportedMime();
+    camRecorder=new MediaRecorder(localStream,mimeType?{mimeType}:{});
+    camRecorder.ondataavailable=e=>{if(e.data.size>0)camChunks.push(e.data)};
+    camRecorder.onstop=()=>saveRecording(camChunks,'growcam-cam',mimeType);
+    camRecorder.start(1000);
+    camRecording=true;
+    document.getElementById('cam-rec-btn').classList.add('recording');
+    toast('Recording started');
+  } else {
+    camRecorder.stop();
+    camRecording=false;
+    document.getElementById('cam-rec-btn').classList.remove('recording');
+    toast('Recording saved');
+  }
+}
+
+// ── Viewer controls ──────────────────────────────────────────────────
+function toggleMute(){
+  const v=document.getElementById('remote-video');
+  viewMuted=!viewMuted;v.muted=viewMuted;
+  document.getElementById('vol-btn').textContent=viewMuted?'🔇':'🔊';
+  toast(viewMuted?'Audio muted':'Audio on');
+}
+
+function toggleFullscreen(){
+  if(!document.fullscreenElement)document.documentElement.requestFullscreen?.();
+  else document.exitFullscreen?.();
+}
+
+function takeSnapshot(){
+  const v=document.getElementById('remote-video');
+  if(!v.srcObject){toast('No stream');return}
+  const c=document.createElement('canvas');
+  c.width=v.videoWidth||1280;c.height=v.videoHeight||720;
+  c.getContext('2d').drawImage(v,0,0);
+  const a=document.createElement('a');
+  a.download='growcam-'+Date.now()+'.jpg';
+  a.href=c.toDataURL('image/jpeg',.93);a.click();
+  toast('Snapshot saved');
+}
+
+// ── Zoom ─────────────────────────────────────────────────────────────
+function onZoom(val){
+  const z=parseFloat(val);
+  document.getElementById('remote-video').style.transform=`scale(${z})`;
+  document.getElementById('zoom-val').textContent=z.toFixed(1)+'×';
+}
+
+// ── Viewer recording ─────────────────────────────────────────────────
+function toggleViewRecording(){
+  const v=document.getElementById('remote-video');
+  if(!v.srcObject){toast('No stream to record');return}
+  if(!viewRecording){
+    viewChunks=[];
+    const mimeType=getSupportedMime();
+    viewRecorder=new MediaRecorder(v.srcObject,mimeType?{mimeType}:{});
+    viewRecorder.ondataavailable=e=>{if(e.data.size>0)viewChunks.push(e.data)};
+    viewRecorder.onstop=()=>saveRecording(viewChunks,'growcam-view',mimeType);
+    viewRecorder.start(1000);
+    viewRecording=true;
+    document.getElementById('view-rec-btn').classList.add('recording');
+    document.getElementById('rec-badge').style.display='flex';
+    toast('Recording started');
+  } else {
+    viewRecorder.stop();
+    viewRecording=false;
+    document.getElementById('view-rec-btn').classList.remove('recording');
+    document.getElementById('rec-badge').style.display='none';
+    toast('Recording saved');
+  }
+}
+
+// ── Recording helpers ────────────────────────────────────────────────
+function getSupportedMime(){
+  const types=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];
+  return types.find(t=>MediaRecorder.isTypeSupported(t))||'';
+}
+
+function saveRecording(chunks,prefix,mimeType){
+  if(!chunks.length)return;
+  const ext=mimeType.includes('mp4')?'mp4':'webm';
+  const blob=new Blob(chunks,{type:mimeType||'video/webm'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.download=prefix+'-'+Date.now()+'.'+ext;
+  a.href=url;a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
+}
+
+// ── Back / cleanup ───────────────────────────────────────────────────
+function goBack(){
+  // Stop any active recordings
+  if(camRecording&&camRecorder){camRecorder.stop();camRecording=false}
+  if(viewRecording&&viewRecorder){viewRecorder.stop();viewRecording=false}
+  clearRetryTimers();
+  if(call){call.close();call=null}
+  if(peer){peer.destroy();peer=null}
+  if(localStream){localStream.getTracks().forEach(t=>t.stop());localStream=null}
+  document.getElementById('remote-video').srcObject=null;
+  document.getElementById('remote-video').style.transform='scale(1)';
+  document.getElementById('zoom-slider').value=1;
+  document.getElementById('zoom-val').textContent='1.0×';
+  document.getElementById('rec-badge').style.display='none';
+  document.getElementById('view-rec-btn').classList.remove('recording');
+  document.getElementById('cam-rec-btn').classList.remove('recording');
+  document.getElementById('torch-btn').classList.remove('lit');
+  document.getElementById('mic-btn').textContent='🎙️';
+  document.getElementById('mic-btn').classList.remove('lit');
+  torchOn=false;micMuted=false;viewMuted=false;
+  show('no-feed');hide('camera-screen');hide('viewer-screen');show('setup');
+}
+</script>
+</body>
+</html>

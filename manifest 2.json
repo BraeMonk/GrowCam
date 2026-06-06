@@ -1,0 +1,24 @@
+{
+  "name": "GrowCam",
+  "short_name": "GrowCam",
+  "description": "Grow room P2P camera monitor",
+  "start_url": "./growcam.html",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#070c07",
+  "theme_color": "#0a0f0a",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%23070c07'/%3E%3Cpath d='M96 18 C54 54 36 114 96 162 C156 114 138 54 96 18Z' stroke='%233dff6e' stroke-width='3.6' fill='none' opacity='0.55'/%3E%3Ccircle cx='96' cy='90' r='30' stroke='%233dff6e' stroke-width='4.2' opacity='0.9' fill='none'/%3E%3Ccircle cx='96' cy='90' r='6' fill='%233dff6e' opacity='0.85'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%23070c07'/%3E%3Cpath d='M256 48 C144 144 96 304 256 432 C416 304 368 144 256 48Z' stroke='%233dff6e' stroke-width='9.6' fill='none' opacity='0.55'/%3E%3Ccircle cx='256' cy='240' r='80' stroke='%233dff6e' stroke-width='11.2' opacity='0.9' fill='none'/%3E%3Ccircle cx='256' cy='240' r='16' fill='%233dff6e' opacity='0.85'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
